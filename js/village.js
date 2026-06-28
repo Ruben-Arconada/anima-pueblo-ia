@@ -558,11 +558,12 @@ export class Village {
       const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
       const gltf = await new GLTFLoader().loadAsync("./models/jugador.glb");
       const obj = gltf.scene;
-      let box = new THREE.Box3().setFromObject(obj);
+      obj.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(obj);
       const alto = box.max.y - box.min.y || 1.8;
-      obj.scale.setScalar(0.6 / alto); // ~1/3 del tamaño (jugador pequeño en el mundo)
-      box = new THREE.Box3().setFromObject(obj);
-      obj.position.y = -box.min.y; // pies a y=0
+      const s = 0.72 / alto; // 1/3 + 20%
+      obj.scale.setScalar(s);
+      obj.position.y = -box.min.y * s; // pies a y=0 con el modelo ya escalado (sin levitar)
       obj.traverse((o) => { if (o.isMesh) o.castShadow = this.sombrasOn; });
       if (this.playerCapsule) this.playerCapsule.visible = false;
       this.player.add(obj);
