@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Ánima · el pueblo de IA</title>
+  <meta name="description" content="Un pequeño pueblo en 3D cuyos vecinos están movidos por IA, improvisan y te recuerdan. Borrador jugable (Fase 0)." />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="escena"></canvas>
+
+  <!-- Barra superior -->
+  <header id="hud">
+    <div class="hud-izq">
+      <strong>Ánima</strong>
+      <span id="ia-badge" class="badge"></span>
+    </div>
+    <div class="hud-der">
+      <span id="resumen" class="resumen"></span>
+      <span class="pid">jugador #<span id="jugador-id">…</span></span>
+      <button id="reset" title="Borrar tu pueblo">↺ reiniciar</button>
+    </div>
+  </header>
+
+  <!-- Pista de interacción -->
+  <div id="hint" class="hint"></div>
+
+  <!-- Pantalla de entrada -->
+  <div id="intro">
+    <div class="caja">
+      <h1>Ánima</h1>
+      <p class="lema">Un pueblo cuyos vecinos <b>improvisan</b>, <b>te recuerdan</b> y reaccionan a lo que dices.</p>
+      <ul class="comolo">
+        <li>🚶 Muévete con <b>WASD</b> o las <b>flechas</b>.</li>
+        <li>💬 Acércate a un vecino y pulsa <b>E</b> (o haz clic) para hablar.</li>
+        <li>🧠 La IA corre <b>en tu navegador</b>. La primera vez descarga el modelo (un rato); luego va cacheado.</li>
+        <li>📌 Tu pueblo es <b>tuyo</b>: cada vecino recuerda lo que hablas, guardado solo en este navegador.</li>
+      </ul>
+      <button id="entrar">Entrar al pueblo →</button>
+      <p class="nota">Mejor en Chrome o Edge (WebGPU). Si tu navegador no lo soporta, se juega igual en “modo sin IA”.</p>
+    </div>
+  </div>
+
+  <!-- Panel de chat -->
+  <aside id="chat">
+    <div class="chat-cab">
+      <div>
+        <div id="chat-nombre">—</div>
+        <div id="chat-rol" class="rol">—</div>
+      </div>
+      <button id="chat-cerrar" title="Cerrar (Esc)">✕</button>
+    </div>
+    <div id="chat-memoria" class="memoria"></div>
+    <div id="chat-log"></div>
+    <form id="chat-form">
+      <input id="chat-input" type="text" autocomplete="off" placeholder="Escribe algo…" />
+      <button type="submit">Enviar</button>
+    </form>
+  </aside>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
