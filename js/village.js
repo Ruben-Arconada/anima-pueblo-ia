@@ -63,6 +63,9 @@ export class Village {
     this.pendingTalk = null; // NPC con quien hablar al llegar
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.tmp = new THREE.Vector3();
+    this.tmp2 = new THREE.Vector3();
+    this.occluders = []; // muros/tejados que se vuelven translúcidos si tapan al jugador (estilo BG3)
+    this.occRay = new THREE.Raycaster();
     this.sombrasOn = !ES_MOVIL;
 
     // --- escena / cámara / render ---
@@ -71,6 +74,8 @@ export class Village {
     this.scene.fog = new THREE.Fog(0xc7dbd6, 34, 78);
 
     this.camera = new THREE.PerspectiveCamera(55, 2, 0.1, 84);
+    this.listener = new THREE.AudioListener();
+    this.camera.add(this.listener);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !ES_MOVIL });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -259,6 +264,8 @@ export class Village {
     const on = a.luces + (b.luces - a.luces) * k;
     if (this._luces) for (const m of this._luces) m.emissiveIntensity = 0.35 + on * 1.15;
     if (this.estrellas) this.estrellas.material.opacity = Math.max(0, (on - 0.45) / 0.55);
+    if (this.grillos) this.grillos.setVolume(on * 0.35); // grillos: suben de noche, suaves
+
   }
   _tickDia(dt) {
     this._diaT += dt;
@@ -274,14 +281,19 @@ export class Village {
   }
 
   _casa(x, z, color, w, h) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshStandardMaterial({ color, roughness: 1, transparent: true }));
     m.position.set(x, h / 2, z);
     m.castShadow = m.receiveShadow = this.sombrasOn;
+    this.occluders.push(m);
     this.scene.add(m);
-    const techo = new THREE.Mesh(new THREE.ConeGeometry(w * 0.85, 2, 4), this.M.techo);
+    const techo = new THREE.Mesh(
+      new THREE.ConeGeometry(w * 0.85, 2, 4),
+      new THREE.MeshStandardMaterial({ color: 0x8a3b2a, roughness: 1, flatShading: true, transparent: true })
+    );
     techo.position.set(x, h + 1, z);
     techo.rotation.y = Math.PI / 4;
     techo.castShadow = this.sombrasOn;
+    this.occluders.push(techo);
     this.scene.add(techo);
     // fachada (+z): puerta + 2 ventanas emisivas
     const puerta = new THREE.Mesh(new THREE.PlaneGeometry(1, 1.6), new THREE.MeshStandardMaterial({ color: 0x4a2f1d, roughness: 1 }));
@@ -467,6 +479,35 @@ export class Village {
     Object.keys(this.keys).forEach((k) => (this.keys[k] = false));
   }
 
+  // Audio: se arranca tras un gesto del usuario (botón Entrar). Carga ficheros de ./audio/
+  // si existen; si no, silencio sin errores. Pon: audio/grillos.mp3 y audio/cantina.mp3.
+  iniciarAudio() {
+    if (this._audioOn) return;
+    this._audioOn = true;
+    const loader = new THREE.AudioLoader();
+    this.grillos = new THREE.Audio(this.listener);
+    this.grillos.setLoop(true);
+    this.grillos.setVolume(0);
+    loader.load("./audio/grillos.mp3", (b) => { this.grillos.setBuffer(b); this.grillos.play(); }, undefined, () => {});
+    this.cantina = new THREE.PositionalAudio(this.listener);
+    this.cantina.setRefDistance(3.5);
+    this.cantina.setMaxDistance(14);
+    this.cantina.setRolloffFactor(2.2);
+    this.cantina.setLoop(true);
+    this.cantina.setVolume(0.7);
+    const ancla = new THREE.Object3D();
+    ancla.position.set(-9, 1.4, -5); // puerta de la taberna de Bruno
+    ancla.add(this.cantina);
+    this.scene.add(ancla);
+    loader.load("./audio/cantina.mp3", (b) => { this.cantina.setBuffer(b); this.cantina.play(); }, undefined, () => {});
+  }
+
+  toggleMute() {
+    this._muted = !this._muted;
+    this.listener.setMasterVolume(this._muted ? 0 : 1);
+    return this._muted;
+  }
+
   _loop() {
     requestAnimationFrame(() => this._loop());
     if (document.hidden) return;
@@ -536,6 +577,19 @@ export class Village {
       const s = 1 + Math.sin(this._mk * 6) * 0.12;
       this.clickMarker.scale.set(s, s, s);
       this.clickMarker.material.opacity = 0.55 + Math.sin(this._mk * 6) * 0.3;
+    }
+
+    // Oclusión estilo BG3: lo que tape al jugador (entre cámara y jugador) se vuelve translúcido
+    if (this.occluders.length) {
+      const head = this.tmp2.set(p.x, 1.2, p.z);
+      const dist = head.distanceTo(this.camera.position);
+      this.occRay.set(this.camera.position, head.sub(this.camera.position).normalize());
+      this.occRay.far = dist;
+      const tapan = new Set(this.occRay.intersectObjects(this.occluders, false).map((h) => h.object));
+      for (const o of this.occluders) {
+        const target = tapan.has(o) ? 0.25 : 1;
+        o.material.opacity += (target - o.material.opacity) * 0.16;
+      }
     }
 
     let cerca = null, dmin = RADIO_INTERACCION;

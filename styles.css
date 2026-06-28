@@ -108,6 +108,8 @@ body.chat-open .joy { bottom: auto; top: calc(60px + env(safe-area-inset-top)); 
 /* Botón de diario (mismo estilo que reiniciar) */
 #diario-btn { background: var(--panel-2); color: var(--muted); border: 1px solid #3a4055; border-radius: 8px; padding: 5px 9px; font-size: 12px; cursor: pointer; }
 #diario-btn:hover { color: var(--text); }
+#mute { background: var(--panel-2); color: var(--muted); border: 1px solid #3a4055; border-radius: 8px; padding: 5px 8px; font-size: 13px; cursor: pointer; }
+#mute:hover { color: var(--text); }
 
 /* Panel de diario (se desliza desde la derecha) */
 #diario { position: fixed; top: 0; right: 0; height: 100%; width: 320px; max-width: 86vw; z-index: 11;

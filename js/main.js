@@ -61,7 +61,13 @@ async function main() {
 
   $("entrar").addEventListener("click", async () => {
     $("intro").classList.add("oculto");
+    village.iniciarAudio(); // el gesto del clic permite arrancar el audio (política del navegador)
     await iniciarCerebro();
+  });
+
+  $("mute")?.addEventListener("click", () => {
+    const m = village.toggleMute();
+    $("mute").textContent = m ? "🔈" : "🔊";
   });
 
   $("jugador-id").textContent = playerId().slice(0, 8);
