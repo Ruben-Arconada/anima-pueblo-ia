@@ -6,6 +6,7 @@ Arranque:  ./run.sh   (o:  ANIMA_TOKEN=xxx uvicorn anima_server:app --port 8011)
 """
 import json
 import os
+import threading
 import time
 import urllib.request
 from collections import defaultdict
@@ -19,6 +20,7 @@ OLLAMA = "http://localhost:11434/api/chat"
 MODEL = os.environ.get("ANIMA_MODEL", "qwen2.5:7b")
 TOKEN = os.environ.get("ANIMA_TOKEN", "")          # si está vacío, no exige auth (modo dev)
 RATE_MAX = int(os.environ.get("ANIMA_RATE", "30")) # peticiones por minuto y por IP
+KEEP_ALIVE = os.environ.get("ANIMA_KEEPALIVE", "30m")  # mantiene el modelo caliente (sin arranque en frío)
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "personajes.json"
 PERSONAJES = {p["id"]: p for p in json.loads(DATA.read_text(encoding="utf-8"))["personajes"]}
@@ -30,6 +32,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def _warmup():
+    # carga el modelo en memoria al arrancar para que la PRIMERA respuesta no tarde 8-10 s
+    try:
+        body = json.dumps({
+            "model": MODEL,
+            "messages": [{"role": "user", "content": "hola"}],
+            "stream": False,
+            "keep_alive": KEEP_ALIVE,
+            "options": {"num_predict": 1},
+        }).encode()
+        urllib.request.urlopen(urllib.request.Request(OLLAMA, data=body, headers={"Content-Type": "application/json"}), timeout=120)
+    except Exception:
+        pass
+
+
+@app.on_event("startup")
+def _on_startup():
+    threading.Thread(target=_warmup, daemon=True).start()
+
 
 _hits = defaultdict(list)
 
@@ -84,6 +106,7 @@ async def chat(req: Request, authorization: str = Header(default="")):
         "model": MODEL,
         "messages": messages,
         "stream": True,
+        "keep_alive": KEEP_ALIVE,
         "options": {
             "temperature": 0.6,
             "repeat_penalty": 1.2,
