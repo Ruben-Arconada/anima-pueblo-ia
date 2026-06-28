@@ -560,7 +560,7 @@ export class Village {
       const obj = gltf.scene;
       let box = new THREE.Box3().setFromObject(obj);
       const alto = box.max.y - box.min.y || 1.8;
-      obj.scale.setScalar(1.8 / alto);
+      obj.scale.setScalar(0.6 / alto); // ~1/3 del tamaño (jugador pequeño en el mundo)
       box = new THREE.Box3().setFromObject(obj);
       obj.position.y = -box.min.y; // pies a y=0
       obj.traverse((o) => { if (o.isMesh) o.castShadow = this.sombrasOn; });
