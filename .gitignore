@@ -2,3 +2,5 @@
 node_modules/
 *.log
 diseno/
+server/.venv/
+__pycache__/
