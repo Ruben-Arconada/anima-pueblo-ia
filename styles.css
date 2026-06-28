@@ -10,7 +10,20 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; color: var(--text); background: var(--bg); }
-#escena { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+#escena { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+
+/* Controles táctiles (móvil) */
+.joy { position: fixed; left: 20px; bottom: 26px; width: 116px; height: 116px; border-radius: 50%;
+  background: #ffffff14; border: 1px solid #ffffff2e; z-index: 6; display: none; touch-action: none; }
+body.touch .joy { display: block; }
+#joy-knob { position: absolute; left: 33px; top: 33px; width: 50px; height: 50px; border-radius: 50%;
+  background: #ffffff66; border: 1px solid #ffffff88; transition: transform .03s; }
+.hablar { position: fixed; right: 20px; bottom: 44px; z-index: 6; display: none;
+  background: var(--accent); color: #1a1400; border: 0; border-radius: 999px; padding: 14px 22px;
+  font-size: 15px; font-weight: 600; box-shadow: 0 4px 18px #0007; cursor: pointer; }
+.hablar.visible { display: block; }
+body.touch .hint { display: none; }
+body.chat-open .joy, body.chat-open .hablar { display: none !important; }
 
 /* HUD */
 #hud {

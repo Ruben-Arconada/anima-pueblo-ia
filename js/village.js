@@ -35,6 +35,7 @@ export class Village {
     this.locked = false;
     this.cercano = null;
     this.keys = {};
+    this.move = { x: 0, z: 0 }; // vector del joystick táctil
 
     // --- escena / cámara / render ---
     this.scene = new THREE.Scene();
@@ -96,6 +97,7 @@ export class Village {
 
     this.raycaster = new THREE.Raycaster();
     this._bind(canvas);
+    this._bindTouch();
     this.resize();
     this.clock = new THREE.Clock();
     this._loop();
@@ -168,6 +170,54 @@ export class Village {
     });
   }
 
+  // Joystick virtual para móvil (no toca el teclado de escritorio).
+  _bindTouch() {
+    const esTactil = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    if (!esTactil) return;
+    document.body.classList.add("touch");
+    const base = document.getElementById("joy-base");
+    const knob = document.getElementById("joy-knob");
+    if (!base || !knob) return;
+    let id = null,
+      cx = 0,
+      cy = 0;
+    const R = 46;
+    const set = (t) => {
+      let dx = t.clientX - cx,
+        dy = t.clientY - cy;
+      const d = Math.hypot(dx, dy) || 1;
+      const cl = Math.min(d, R);
+      dx = (dx / d) * cl;
+      dy = (dy / d) * cl;
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      this.move.x = dx / R;
+      this.move.z = dy / R; // arriba en pantalla = -z = adelante
+    };
+    const reset = () => {
+      id = null;
+      this.move.x = 0;
+      this.move.z = 0;
+      knob.style.transform = "translate(0,0)";
+    };
+    base.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      id = t.identifier;
+      const r = base.getBoundingClientRect();
+      cx = r.left + r.width / 2;
+      cy = r.top + r.height / 2;
+      set(t);
+    }, { passive: false });
+    base.addEventListener("touchmove", (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) if (t.identifier === id) set(t);
+    }, { passive: false });
+    base.addEventListener("touchend", (e) => {
+      for (const t of e.changedTouches) if (t.identifier === id) reset();
+    });
+    base.addEventListener("touchcancel", reset);
+  }
+
   resize() {
     const w = this.renderer.domElement.clientWidth;
     const h = this.renderer.domElement.clientHeight;
@@ -186,13 +236,24 @@ export class Village {
     requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
-    // movimiento
+    // movimiento (teclado + joystick táctil)
     if (!this.locked) {
       const v = 6 * dt;
-      if (this.keys["w"] || this.keys["arrowup"]) this.player.position.z -= v;
-      if (this.keys["s"] || this.keys["arrowdown"]) this.player.position.z += v;
-      if (this.keys["a"] || this.keys["arrowleft"]) this.player.position.x -= v;
-      if (this.keys["d"] || this.keys["arrowright"]) this.player.position.x += v;
+      let mx = 0,
+        mz = 0;
+      if (this.keys["a"] || this.keys["arrowleft"]) mx -= 1;
+      if (this.keys["d"] || this.keys["arrowright"]) mx += 1;
+      if (this.keys["w"] || this.keys["arrowup"]) mz -= 1;
+      if (this.keys["s"] || this.keys["arrowdown"]) mz += 1;
+      mx += this.move.x;
+      mz += this.move.z;
+      const mag = Math.hypot(mx, mz);
+      if (mag > 1) {
+        mx /= mag;
+        mz /= mag;
+      }
+      this.player.position.x += mx * v;
+      this.player.position.z += mz * v;
       this.player.position.x = Math.max(-LIMITE, Math.min(LIMITE, this.player.position.x));
       this.player.position.z = Math.max(-LIMITE, Math.min(LIMITE, this.player.position.z));
     }

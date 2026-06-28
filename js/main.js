@@ -21,11 +21,17 @@ async function main() {
   const village = new Village($("escena"), personajes, {
     onProximity: (npc) => {
       const hint = $("hint");
+      const hablar = $("hablar");
       if (npc) {
         hint.innerHTML = `Pulsa <b>E</b> o haz clic para hablar con <b style="color:${npc.color}">${npc.nombre}</b>`;
         hint.classList.add("visible");
+        hablar.textContent = `💬 Hablar con ${npc.nombre}`;
+        hablar.classList.add("visible");
+        hablar.onclick = () => abrirChat(ui, village, npc);
       } else {
         hint.classList.remove("visible");
+        hablar.classList.remove("visible");
+        hablar.onclick = null;
       }
     },
     onInteract: (npc) => abrirChat(ui, village, npc),

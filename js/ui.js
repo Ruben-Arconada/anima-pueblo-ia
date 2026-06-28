@@ -43,11 +43,13 @@ export class ChatUI {
       this.mem.style.display = "block";
     }
     this.panel.classList.add("abierto");
+    document.body.classList.add("chat-open");
     setTimeout(() => this.input.focus(), 50);
   }
 
   close() {
     this.panel.classList.remove("abierto");
+    document.body.classList.remove("chat-open");
     this.onClose();
   }
 
