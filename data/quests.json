@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "quests": [
     {
       "id": "q_elena_palabra",
@@ -55,7 +55,49 @@
       "deseo": "te has ablandado y quieres agradecer a Elena la valeriana; pide al jugador que le lleve un recado de tu parte.",
       "hintTarget": "el jugador quizá te traiga un agradecimiento de parte de Bruno; te hará mucha ilusión.",
       "triggerDecir": "(bruno|tabern|cantina).*(gracias|agradec|recado|infusi|deuda|te manda|valeriana|aprecia)",
-      "cierre": "✓ Le diste a Elena el recado de Bruno. Has cerrado el primer hilo de Ánima."
+      "cierre": "✓ Le diste a Elena el recado de Bruno."
+    },
+    {
+      "id": "q_elena_flor",
+      "giver": "elena",
+      "target": "bruno",
+      "requiere": "q_bruno_encargo",
+      "desbloquea": null,
+      "titulo": "La flor que abre de noche",
+      "diario": "Elena te confía su flor azul, la que solo abre de noche y dicen que cura penas. Quiere que se la lleves a Bruno.",
+      "ofrece": "Elena: «Llévale a Bruno mi flor azul, la que abre de noche... a ver si le quita esa pena vieja.»",
+      "deseo": "quieres que Bruno deje atrás su pena; pide al jugador que le lleve tu flor azul que abre de noche.",
+      "hintTarget": "el jugador quizá te traiga una flor azul de parte de Elena; te tocará una fibra que creías muerta.",
+      "triggerDecir": "(flor azul|flor del bosque|flor de noche|flor que abre).*(bruno|pena|noche|cura|elena|de parte)",
+      "cierre": "✓ Le llevaste a Bruno la flor azul de Elena."
+    },
+    {
+      "id": "q_marta_carta",
+      "giver": "marta",
+      "target": "bruno",
+      "requiere": "q_tomas_secreto",
+      "desbloquea": null,
+      "titulo": "Dos cartas, una sola",
+      "diario": "Marta confiesa que aún guarda la carta gemela de la que Bruno nunca envió. Quiere que él sepa que la conserva.",
+      "ofrece": "Marta: «Si hablas con Bruno... dile, sin dramatismos, que yo todavía guardo la mía.»",
+      "deseo": "guardas la carta gemela de Bruno; pide al jugador que le haga saber, con tacto, que aún la conservas.",
+      "hintTarget": "el jugador quizá te diga que Marta todavía guarda su carta; remueve algo muy hondo en ti.",
+      "triggerDecir": "(carta|marta).*(guarda|conserva|gemela|todav|aun|la suya|la mia)",
+      "cierre": "✓ Le dijiste a Bruno que Marta aún guarda su carta."
+    },
+    {
+      "id": "q_bruno_respuesta",
+      "giver": "bruno",
+      "target": "marta",
+      "requiere": "q_marta_carta",
+      "desbloquea": null,
+      "titulo": "Lo que nunca dijo",
+      "diario": "Bruno, por fin, te da su respuesta para Marta: lo que la cabeza calló hace años. Llévasela.",
+      "ofrece": "Bruno: «Está bien... dile a Marta que esta vez sí. Que ya iba siendo hora. Y ni una palabra más.»",
+      "deseo": "por fin quieres responder a Marta; pide al jugador que le lleve tu respuesta, esa que callaste hace años.",
+      "hintTarget": "el jugador quizá te traiga por fin la respuesta de Bruno; es el momento que llevas años esperando.",
+      "triggerDecir": "(bruno|respuesta|carta).*(respuesta|de su parte|por fin|caj[oó]n|esta vez|contesta)",
+      "cierre": "✓ Le llevaste a Marta la respuesta de Bruno. Has tejido el último hilo de Ánima."
     }
   ]
 }

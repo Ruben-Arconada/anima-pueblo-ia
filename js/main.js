@@ -7,7 +7,7 @@ import { ChatUI } from "./ui.js";
 import { createBrain } from "./ai/brain.js";
 import { loadHistory, saveHistory, loadMeta, marcarEncuentro, subirConfianza, borrarTodo, playerId } from "./memory.js";
 import { formatMetrics, record, summary } from "./metrics.js";
-import { cargarQuests, ofertaDe, deseoDe, expectativaDe, evaluarDecir, activas, hechas, todasHechas } from "./quests.js";
+import { cargarQuests, ofertaDe, deseoDe, expectativaDe, evaluarDecir, activas, hechas, total, todasHechas, estadoPuebloDe } from "./quests.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,7 +42,10 @@ async function main() {
     onInteract: (npc) => abrirChat(ui, village, npc),
   });
 
-  ui.onClose = () => village.setLocked(false);
+  ui.onClose = () => {
+    village.setLocked(false);
+    village.renderer.domElement.focus(); // re-enfoca el canvas: WASD vuelve a responder sin clicar
+  };
 
   $("diario-btn")?.addEventListener("click", () => {
     refrescarDiario(ui);
@@ -130,7 +133,8 @@ function abrirChat(ui, village, npc) {
     refrescarDiario(ui);
   }
 
-  sesion = { npc, convo: historial.slice(), meta, deseo: deseoDe(npc.id), expectativa: expectativaDe(npc.id) };
+  const exp = [expectativaDe(npc.id), estadoPuebloDe()].filter(Boolean).join(" ") || null;
+  sesion = { npc, convo: historial.slice(), meta, deseo: deseoDe(npc.id), expectativa: exp, confSubida: false };
   ui.onSend = (texto) => responder(ui, npc, texto);
 }
 
@@ -147,9 +151,9 @@ async function responder(ui, npc, texto) {
     subirConfianza(cerrada.giver);
     ui.questToast(cerrada.cierre, colorDe(cerrada.giver));
     sesion.deseo = deseoDe(npc.id);
-    sesion.expectativa = expectativaDe(npc.id);
+    sesion.expectativa = [expectativaDe(npc.id), estadoPuebloDe()].filter(Boolean).join(" ") || null;
     refrescarDiario(ui);
-    if (todasHechas()) setTimeout(() => ui.system("Has tejido el primer hilo de Ánima. Gracias por escuchar antes de hablar."), 700);
+    if (todasHechas()) setTimeout(() => ui.system("✨ Has despertado a Ánima. El pueblo entero respira distinto gracias a ti; la feria por fin tiene fecha."), 700);
   }
 
   const stream = ui.addNPCStream(npc.color);
@@ -167,6 +171,11 @@ async function responder(ui, npc, texto) {
     saveHistory(npc.id, sesion.convo);
     record(res.metrics);
     actualizarResumen();
+    // micro-recompensa: cada conversación con respuesta sube un poco el afecto (una vez por sesión)
+    if (!sesion.confSubida) {
+      subirConfianza(npc.id);
+      sesion.confSubida = true;
+    }
   } catch (e) {
     console.error(e);
     // Degradar a modo sin IA EN CALIENTE (p.ej. OOM en runtime) en vez de un error opaco.
@@ -187,8 +196,11 @@ async function responder(ui, npc, texto) {
 function refrescarDiario(ui) {
   ui.renderDiario(
     activas().map((q) => ({ ...q, color: colorDe(q.giver) })),
-    hechas()
+    hechas(),
+    { hechas: hechas().length, total: total() }
   );
+  const prog = $("progreso");
+  if (prog) prog.textContent = `Ánima: ${hechas().length}/${total()} hilos`;
 }
 
 function actualizarResumen() {

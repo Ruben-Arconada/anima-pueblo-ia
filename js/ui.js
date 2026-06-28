@@ -44,10 +44,12 @@ export class ChatUI {
     this.titulo.style.color = npc.color;
     this.rol.textContent = npc.rol;
     this.log.innerHTML = "";
+    const conf = Math.min((memoria && memoria.confianza) || 0, 5);
+    const corazones = `<span class="afecto" style="color:${npc.color}">${"♥".repeat(conf)}${"♡".repeat(5 - conf)}</span>`;
     if (memoria && memoria.veces > 0) {
-      this.mem.textContent = `💭 ${npc.nombre} te recuerda · habéis hablado ${memoria.veces} ${memoria.veces === 1 ? "vez" : "veces"}${memoria.confianza > 0 ? " · hay confianza" : ""}`;
+      this.mem.innerHTML = `💭 ${npc.nombre} te recuerda · habéis hablado ${memoria.veces} ${memoria.veces === 1 ? "vez" : "veces"} ${corazones}`;
     } else {
-      this.mem.textContent = "✨ Primera vez que os veis";
+      this.mem.innerHTML = `✨ Primera vez que os veis ${corazones}`;
     }
     this.panel.classList.add("abierto");
     document.body.classList.add("chat-open");
@@ -133,11 +135,20 @@ export class ChatUI {
     this.diario.classList.toggle("abierto", abrir);
   }
 
-  renderDiario(activas, hechas) {
+  renderDiario(activas, hechas, info = {}) {
     if (!this.diarioLista) return;
     this.diarioLista.innerHTML = "";
+    if (info.total) {
+      const h = document.createElement("div");
+      h.className = "q-progreso";
+      h.textContent = `Ánima despierta · ${info.hechas}/${info.total} hilos tejidos`;
+      this.diarioLista.appendChild(h);
+    }
     if (!activas.length && !hechas.length) {
-      this.diarioLista.innerHTML = '<p class="q-vacio">Aún no tienes recados. Acércate a los vecinos: alguno necesitará tu ayuda.</p>';
+      const p = document.createElement("p");
+      p.className = "q-vacio";
+      p.textContent = "Aún no tienes recados. Acércate a los vecinos: alguno necesitará tu ayuda.";
+      this.diarioLista.appendChild(p);
       return;
     }
     for (const q of activas) {

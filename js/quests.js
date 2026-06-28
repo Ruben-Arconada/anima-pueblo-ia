@@ -52,8 +52,11 @@ export function expectativaDe(npcId) {
 }
 
 // Al hablar con un NPC: ¿el texto del jugador cierra una quest activa cuyo objetivo es él?
+// quita tildes para que los triggers casen aunque el jugador escriba sin acentos
+const sinTildes = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
 export function evaluarDecir(npcId, userText) {
-  const t = (userText || "").toLowerCase();
+  const t = sinTildes(userText);
   const q = _defs.find(
     (q) => q.target === npcId && estadoDe(q.id) === "activa" && new RegExp(q.triggerDecir, "i").test(t)
   );
@@ -66,4 +69,15 @@ export function evaluarDecir(npcId, userText) {
 
 export const activas = () => _defs.filter((q) => estadoDe(q.id) === "activa");
 export const hechas = () => _defs.filter((q) => estadoDe(q.id) === "hecha");
+export const total = () => _defs.length;
 export const todasHechas = () => _defs.length > 0 && _defs.every((q) => estadoDe(q.id) === "hecha");
+
+// Frase de "estado del pueblo" que se inyecta como contexto para que los NPCs comenten los cambios.
+export function estadoPuebloDe() {
+  const hecha = (id) => estadoDe(id) === "hecha";
+  const f = [];
+  if (hecha("q_elena_palabra")) f.push("Bruno y Elena han vuelto a saludarse.");
+  if (hecha("q_tomas_secreto") || hecha("q_marta_carta")) f.push("corre el rumor de una vieja carta entre Bruno y Marta.");
+  if (todasHechas()) f.push("el pueblo entero parece más despierto y unido.");
+  return f.length ? "[ESTADO DEL PUEBLO, tenlo en cuenta] " + f.join(" ") : null;
+}

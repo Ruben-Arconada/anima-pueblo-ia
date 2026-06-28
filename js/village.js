@@ -70,7 +70,7 @@ export class Village {
     this.scene.background = cieloTextura();
     this.scene.fog = new THREE.Fog(0xc7dbd6, 34, 78);
 
-    this.camera = new THREE.PerspectiveCamera(55, 2, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(55, 2, 0.1, 84);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !ES_MOVIL });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -80,19 +80,21 @@ export class Village {
     this.renderer.shadowMap.enabled = this.sombrasOn;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // --- luces ---
-    this.scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x5a6b48, 0.85));
-    const sol = new THREE.DirectionalLight(0xfff0d8, 1.55);
-    sol.position.set(14, 20, 8);
+    // --- luces (refs guardadas para el ciclo día/noche) ---
+    this._luces = []; // materiales emisivos (ventanas, farolas) que se encienden de noche
+    this.hemi = new THREE.HemisphereLight(0xeaf2ff, 0x5a6b48, 0.85);
+    this.scene.add(this.hemi);
+    this.sol = new THREE.DirectionalLight(0xfff0d8, 1.55);
+    this.sol.position.set(14, 20, 8);
     if (this.sombrasOn) {
-      sol.castShadow = true;
-      sol.shadow.mapSize.set(1024, 1024);
+      this.sol.castShadow = true;
+      this.sol.shadow.mapSize.set(1024, 1024);
       const s = 26;
-      Object.assign(sol.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 60 });
-      sol.shadow.bias = -0.0005;
-      sol.shadow.normalBias = 0.04;
+      Object.assign(this.sol.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 60 });
+      this.sol.shadow.bias = -0.0005;
+      this.sol.shadow.normalBias = 0.04;
     }
-    this.scene.add(sol);
+    this.scene.add(this.sol);
     const relleno = new THREE.DirectionalLight(0x9fc0ff, 0.35);
     relleno.position.set(-10, 8, -6);
     this.scene.add(relleno);
@@ -173,8 +175,88 @@ export class Village {
     this._bind(canvas);
     this._bindTouch();
     this.resize();
+
+    // ciclo día/noche (1 día ≈ 8 min; persiste el momento en localStorage)
+    this._diaT = Number(localStorage.getItem("anima:diaT")) || 0;
+    this.CICLO = 480;
+    this._setMomento(this._fase());
+
     this.clock = new THREE.Clock();
     this._loop();
+  }
+
+  // ---- Ciclo día/noche (reusa cielo, sol, niebla y materiales emisivos ya montados) ----
+  _paletas() {
+    return {
+      amanecer: { top: "#f4c89a", bot: "#e9d6c0", sol: 0xffd9a0, solI: 0.9, hemi: 0.7, fog: "#e8d6c4", near: 30, far: 74, expo: 1.0, luces: 0.5 },
+      dia: { top: "#cfe6f2", bot: "#dfe7d8", sol: 0xfff0d8, solI: 1.55, hemi: 0.85, fog: "#c7dbd6", near: 34, far: 78, expo: 1.05, luces: 0.0 },
+      atardecer: { top: "#f0b07a", bot: "#caa0b0", sol: 0xffb072, solI: 1.1, hemi: 0.6, fog: "#d9b6a8", near: 28, far: 70, expo: 1.02, luces: 0.7 },
+      noche: { top: "#2a3658", bot: "#1c2238", sol: 0x6f86c8, solI: 0.35, hemi: 0.4, fog: "#222d4a", near: 22, far: 60, expo: 0.95, luces: 1.0 },
+    };
+  }
+  _secuencia() {
+    return [["amanecer", 0.12], ["dia", 0.46], ["atardecer", 0.12], ["noche", 0.3]];
+  }
+  _fase() {
+    const f = (this._diaT % this.CICLO) / this.CICLO;
+    const seq = this._secuencia();
+    let acc = 0;
+    for (let i = 0; i < seq.length; i++) {
+      const [n, d] = seq[i];
+      if (f < acc + d) return { actual: n, siguiente: seq[(i + 1) % seq.length][0], k: (f - acc) / d };
+      acc += d;
+    }
+    return { actual: "dia", siguiente: "atardecer", k: 0 };
+  }
+  _lerpHex(a, b, t) {
+    return new THREE.Color(a).lerp(new THREE.Color(b), t);
+  }
+  _pintarCielo(top, bot) {
+    if (!this._cieloCanvas) {
+      this._cieloCanvas = document.createElement("canvas");
+      this._cieloCanvas.width = 8;
+      this._cieloCanvas.height = 256;
+      this._cieloCtx = this._cieloCanvas.getContext("2d");
+      this._cieloTex = new THREE.CanvasTexture(this._cieloCanvas);
+      this._cieloTex.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = this._cieloTex;
+    }
+    const ctx = this._cieloCtx;
+    const g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, "#" + top.getHexString());
+    g.addColorStop(1, "#" + bot.getHexString());
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 8, 256);
+    this._cieloTex.needsUpdate = true;
+  }
+  _setMomento({ actual, siguiente, k }) {
+    const P = this._paletas(), a = P[actual], b = P[siguiente];
+    this._pintarCielo(this._lerpHex(a.top, b.top, k), this._lerpHex(a.bot, b.bot, k));
+    if (this.sol) {
+      this.sol.color.copy(this._lerpHex(new THREE.Color(a.sol), new THREE.Color(b.sol), k));
+      this.sol.intensity = a.solI + (b.solI - a.solI) * k;
+    }
+    if (this.hemi) this.hemi.intensity = a.hemi + (b.hemi - a.hemi) * k;
+    if (this.scene.fog) {
+      this.scene.fog.color.copy(this._lerpHex(a.fog, b.fog, k));
+      this.scene.fog.near = a.near + (b.near - a.near) * k;
+      this.scene.fog.far = a.far + (b.far - a.far) * k;
+    }
+    this.renderer.toneMappingExposure = a.expo + (b.expo - a.expo) * k;
+    const on = a.luces + (b.luces - a.luces) * k;
+    if (this._luces) for (const m of this._luces) m.emissiveIntensity = 0.35 + on * 1.15;
+  }
+  _tickDia(dt) {
+    this._diaT += dt;
+    this._diaAcc = (this._diaAcc || 0) + dt;
+    if (this._diaAcc < 0.1) return;
+    this._diaAcc = 0;
+    this._setMomento(this._fase());
+    this._guardarAcc = (this._guardarAcc || 0) + 0.1;
+    if (this._guardarAcc >= 5) {
+      this._guardarAcc = 0;
+      localStorage.setItem("anima:diaT", String(Math.floor(this._diaT)));
+    }
   }
 
   _casa(x, z, color, w, h) {
@@ -192,6 +274,7 @@ export class Village {
     puerta.position.set(x, 0.8, z + w / 2 + 0.01);
     this.scene.add(puerta);
     const vmat = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb84d, emissiveIntensity: 0.35, roughness: 1 });
+    this._luces.push(vmat);
     for (const dx of [-w / 4, w / 4]) {
       const v = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), vmat);
       v.position.set(x + dx, h * 0.62, z + w / 2 + 0.01);
@@ -208,6 +291,7 @@ export class Village {
     const posteM = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 1 });
     const bombillaG = new THREE.SphereGeometry(0.16, 10, 10);
     const bombillaM = new THREE.MeshStandardMaterial({ color: 0xffe9a8, emissive: 0xffcf6a, emissiveIntensity: 0.6, roughness: 1 });
+    this._luces.push(bombillaM);
 
     const arbol = (x, z) => {
       const t = new THREE.Mesh(troncoG, troncoM);
@@ -257,6 +341,20 @@ export class Village {
   }
 
   _bind(canvas) {
+    canvas.tabIndex = -1; // permite re-enfocar el canvas al cerrar el chat (WASD vuelve a responder)
+    // cursor contextual: mano sobre un NPC
+    let mmRaf = null;
+    addEventListener("pointermove", (e) => {
+      if (mmRaf || this.locked) return;
+      mmRaf = requestAnimationFrame(() => {
+        mmRaf = null;
+        const r = canvas.getBoundingClientRect();
+        const mouse = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+        this.raycaster.setFromCamera(mouse, this.camera);
+        const hit = this.raycaster.intersectObjects(this.npcs.flatMap((n) => n.userData.meshes), false).length > 0;
+        document.body.classList.toggle("sobre-npc", hit);
+      });
+    });
     addEventListener("keydown", (e) => {
       this.keys[e.key.toLowerCase()] = true;
       if (e.key.toLowerCase() === "e" && this.cercano && !this.locked) {
@@ -418,6 +516,13 @@ export class Village {
       n.position.y = Math.sin(t * 1.5 + i) * 0.04;
     });
     this.playerShadow.position.set(p.x, 0.016, p.z);
+    this._tickDia(dt);
+    if (this.clickMarker.visible) {
+      this._mk = (this._mk || 0) + dt;
+      const s = 1 + Math.sin(this._mk * 6) * 0.12;
+      this.clickMarker.scale.set(s, s, s);
+      this.clickMarker.material.opacity = 0.55 + Math.sin(this._mk * 6) * 0.3;
+    }
 
     let cerca = null, dmin = RADIO_INTERACCION;
     for (const n of this.npcs) {
