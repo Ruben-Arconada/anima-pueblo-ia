@@ -59,6 +59,9 @@ export class Village {
     this.cercano = null;
     this.keys = {};
     this.move = { x: 0, z: 0 };
+    this.moveTarget = null; // destino del point-and-click (ratón/táctil)
+    this.pendingTalk = null; // NPC con quien hablar al llegar
+    this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.tmp = new THREE.Vector3();
     this.sombrasOn = !ES_MOVIL;
 
@@ -156,6 +159,15 @@ export class Village {
     this.ring.rotation.x = -Math.PI / 2;
     this.ring.visible = false;
     this.scene.add(this.ring);
+
+    // marca de destino del point-and-click
+    this.clickMarker = new THREE.Mesh(
+      new THREE.RingGeometry(0.28, 0.44, 24),
+      new THREE.MeshBasicMaterial({ color: 0xffe066, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+    );
+    this.clickMarker.rotation.x = -Math.PI / 2;
+    this.clickMarker.visible = false;
+    this.scene.add(this.clickMarker);
 
     this.raycaster = new THREE.Raycaster();
     this._bind(canvas);
@@ -258,14 +270,35 @@ export class Village {
       const r = canvas.getBoundingClientRect();
       const mouse = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       this.raycaster.setFromCamera(mouse, this.camera);
+      // 1) clic sobre un NPC -> si estás cerca habla; si no, ve hacia él y habla al llegar
       const hits = this.raycaster.intersectObjects(this.npcs.flatMap((n) => n.userData.meshes), false);
       if (hits.length) {
-        const npcGroup = hits[0].object.parent;
-        if (npcGroup.position.distanceTo(this.player.position) <= RADIO_INTERACCION) {
-          this.onInteract(npcGroup.userData.npc);
+        const g = hits[0].object.parent;
+        if (g.position.distanceTo(this.player.position) <= RADIO_INTERACCION) {
+          this.onInteract(g.userData.npc);
+        } else {
+          this.moveTarget = g.position.clone();
+          this.pendingTalk = g.userData.npc;
+          this._marcarDestino(g.position, g.userData.npc.color);
         }
+        return;
+      }
+      // 2) clic en el suelo -> caminar hasta ese punto
+      const pt = new THREE.Vector3();
+      if (this.raycaster.ray.intersectPlane(this.groundPlane, pt)) {
+        pt.x = Math.max(-LIMITE, Math.min(LIMITE, pt.x));
+        pt.z = Math.max(-LIMITE, Math.min(LIMITE, pt.z));
+        this.moveTarget = pt;
+        this.pendingTalk = null;
+        this._marcarDestino(pt, 0xffe066);
       }
     });
+  }
+
+  _marcarDestino(pos, color) {
+    this.clickMarker.material.color.set(color);
+    this.clickMarker.position.set(pos.x, 0.02, pos.z);
+    this.clickMarker.visible = true;
   }
 
   _bindTouch() {
@@ -314,6 +347,11 @@ export class Village {
 
   setLocked(v) {
     this.locked = v;
+    if (v) {
+      this.moveTarget = null;
+      this.pendingTalk = null;
+      if (this.clickMarker) this.clickMarker.visible = false;
+    }
     Object.keys(this.keys).forEach((k) => (this.keys[k] = false));
   }
 
@@ -331,6 +369,30 @@ export class Village {
       if (this.keys["s"] || this.keys["arrowdown"]) mz += 1;
       mx += this.move.x;
       mz += this.move.z;
+      const manual = Math.abs(mx) > 0.01 || Math.abs(mz) > 0.01;
+      if (manual) {
+        // teclado/joystick cancela el destino de point-and-click
+        this.moveTarget = null;
+        this.pendingTalk = null;
+        this.clickMarker.visible = false;
+      } else if (this.moveTarget) {
+        const dx = this.moveTarget.x - this.player.position.x;
+        const dz = this.moveTarget.z - this.player.position.z;
+        const d = Math.hypot(dx, dz);
+        const stop = this.pendingTalk ? RADIO_INTERACCION - 1.4 : 0.18;
+        if (d <= stop) {
+          this.moveTarget = null;
+          this.clickMarker.visible = false;
+          if (this.pendingTalk) {
+            const npc = this.pendingTalk;
+            this.pendingTalk = null;
+            this.onInteract(npc);
+          }
+        } else {
+          mx = dx / d;
+          mz = dz / d;
+        }
+      }
       const mag = Math.hypot(mx, mz);
       if (mag > 1) { mx /= mag; mz /= mag; }
       this.player.position.x = Math.max(-LIMITE, Math.min(LIMITE, this.player.position.x + mx * v));
