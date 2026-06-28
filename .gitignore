@@ -4,3 +4,4 @@ node_modules/
 diseno/
 server/.venv/
 __pycache__/
+server/.token
