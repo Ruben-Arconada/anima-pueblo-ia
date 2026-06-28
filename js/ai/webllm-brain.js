@@ -59,6 +59,7 @@ export class WebLLMBrain {
   // Construye el system prompt en caliente: persona + relación (memoria) + contexto de quest.
   _system(npc, { meta, deseo, expectativa } = {}) {
     let s = npc.systemPrompt;
+    s += "\n[ESTILO] No repitas preguntas ni frases que ya hayas dicho en esta conversación; varía y haz que avance.";
     if (meta) {
       if (!meta.veces || meta.veces <= 1) s += "\n[RELACIÓN] Es la primera vez que habláis.";
       else
@@ -67,7 +68,7 @@ export class WebLLMBrain {
         }. Trátale como a un conocido.`;
     }
     if (deseo)
-      s += `\n[CONTEXTO OCULTO, no lo recites literal] Tienes un deseo sin resolver: ${deseo} Si surge, sácalo con naturalidad en tu propia voz.`;
+      s += `\n[CONTEXTO OCULTO, no lo recites literal] Tienes un deseo: ${deseo} Menciónalo UNA sola vez con naturalidad si encaja; si ya lo dijiste o el jugador ya respondió, NO insistas.`;
     if (expectativa) s += `\n[CONTEXTO OCULTO, no lo recites literal] ${expectativa}`;
     return s;
   }

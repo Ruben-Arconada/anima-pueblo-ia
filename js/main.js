@@ -157,8 +157,9 @@ async function responder(ui, npc, texto) {
     const res = await brain.generate(npc, sesion.convo, texto, {
       onToken: (t) => stream.token(t),
       meta: sesion.meta,
-      deseo: sesion.deseo,
-      expectativa: sesion.expectativa,
+      // El "deseo" solo se insinúa en el PRIMER mensaje, para que no lo repita cada turno.
+      deseo: sesion.convo.length === 0 ? sesion.deseo : null,
+      expectativa: sesion.convo.length < 4 ? sesion.expectativa : null,
     });
     stream.done(formatMetrics(res.metrics));
     sesion.convo.push({ role: "user", content: texto });
