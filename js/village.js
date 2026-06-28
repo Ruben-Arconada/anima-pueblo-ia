@@ -88,11 +88,12 @@ export class Village {
     this.sol.position.set(14, 20, 8);
     if (this.sombrasOn) {
       this.sol.castShadow = true;
-      this.sol.shadow.mapSize.set(1024, 1024);
-      const s = 26;
+      // 2048 + área más ajustada (s=20) => más resolución por texel => menos "tembleque"
+      this.sol.shadow.mapSize.set(2048, 2048);
+      const s = 20;
       Object.assign(this.sol.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 1, far: 60 });
-      this.sol.shadow.bias = -0.0005;
-      this.sol.shadow.normalBias = 0.04;
+      this.sol.shadow.bias = -0.0004;
+      this.sol.shadow.normalBias = 0.06;
     }
     this.scene.add(this.sol);
     const relleno = new THREE.DirectionalLight(0x9fc0ff, 0.35);
@@ -171,6 +172,18 @@ export class Village {
     this.clickMarker.visible = false;
     this.scene.add(this.clickMarker);
 
+    // estrellas en la bóveda (se encienden de noche, ignoran la niebla)
+    const N = 220;
+    const sp = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const d = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 0.85 + 0.15, Math.random() * 2 - 1).normalize().multiplyScalar(76);
+      sp[i * 3] = d.x; sp[i * 3 + 1] = d.y; sp[i * 3 + 2] = d.z;
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute("position", new THREE.BufferAttribute(sp, 3));
+    this.estrellas = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+    this.scene.add(this.estrellas);
+
     this.raycaster = new THREE.Raycaster();
     this._bind(canvas);
     this._bindTouch();
@@ -178,7 +191,7 @@ export class Village {
 
     // ciclo día/noche (1 día ≈ 8 min; persiste el momento en localStorage)
     this._diaT = Number(localStorage.getItem("anima:diaT")) || 0;
-    this.CICLO = 480;
+    this.CICLO = 360; // 1 día ≈ 6 min (más visible durante una sesión)
     this._setMomento(this._fase());
 
     this.clock = new THREE.Clock();
@@ -191,7 +204,7 @@ export class Village {
       amanecer: { top: "#f4c89a", bot: "#e9d6c0", sol: 0xffd9a0, solI: 0.9, hemi: 0.7, fog: "#e8d6c4", near: 30, far: 74, expo: 1.0, luces: 0.5 },
       dia: { top: "#cfe6f2", bot: "#dfe7d8", sol: 0xfff0d8, solI: 1.55, hemi: 0.85, fog: "#c7dbd6", near: 34, far: 78, expo: 1.05, luces: 0.0 },
       atardecer: { top: "#f0b07a", bot: "#caa0b0", sol: 0xffb072, solI: 1.1, hemi: 0.6, fog: "#d9b6a8", near: 28, far: 70, expo: 1.02, luces: 0.7 },
-      noche: { top: "#2a3658", bot: "#1c2238", sol: 0x6f86c8, solI: 0.35, hemi: 0.4, fog: "#222d4a", near: 22, far: 60, expo: 0.95, luces: 1.0 },
+      noche: { top: "#16203f", bot: "#0c1224", sol: 0x6f86c8, solI: 0.32, hemi: 0.38, fog: "#141d38", near: 22, far: 60, expo: 0.92, luces: 1.0 },
     };
   }
   _secuencia() {
@@ -245,6 +258,7 @@ export class Village {
     this.renderer.toneMappingExposure = a.expo + (b.expo - a.expo) * k;
     const on = a.luces + (b.luces - a.luces) * k;
     if (this._luces) for (const m of this._luces) m.emissiveIntensity = 0.35 + on * 1.15;
+    if (this.estrellas) this.estrellas.material.opacity = Math.max(0, (on - 0.45) / 0.55);
   }
   _tickDia(dt) {
     this._diaT += dt;
