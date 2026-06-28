@@ -2,10 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Ánima · el pueblo de IA</title>
-  <meta name="description" content="Un pequeño pueblo en 3D cuyos vecinos están movidos por IA, improvisan y te recuerdan. Borrador jugable (Fase 0)." />
+  <meta name="description" content="Un pequeño pueblo en 3D cuyos vecinos están movidos por IA, improvisan, te recuerdan y te proponen misiones. Borrador jugable (Fase 0)." />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" />
   <script type="importmap">
     { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
   </script>
@@ -22,6 +23,7 @@
     <div class="hud-der">
       <span id="resumen" class="resumen"></span>
       <span class="pid">jugador #<span id="jugador-id">…</span></span>
+      <button id="diario-btn" title="Diario / misiones (J)">📖 diario</button>
       <button id="reset" title="Borrar tu pueblo">↺ reiniciar</button>
     </div>
   </header>
@@ -46,25 +48,34 @@
   </div>
 
   <!-- Panel de chat -->
-  <aside id="chat">
+  <aside id="chat" role="dialog" aria-modal="false" aria-label="Conversación con un vecino">
     <div class="chat-cab">
       <div>
         <div id="chat-nombre">—</div>
         <div id="chat-rol" class="rol">—</div>
       </div>
-      <button id="chat-cerrar" title="Cerrar (Esc)">✕</button>
+      <button id="chat-cerrar" title="Cerrar (Esc)" aria-label="Cerrar conversación">✕</button>
     </div>
     <div id="chat-memoria" class="memoria"></div>
-    <div id="chat-log"></div>
+    <div id="chat-log" aria-live="polite"></div>
     <form id="chat-form">
-      <input id="chat-input" type="text" autocomplete="off" placeholder="Escribe algo…" />
+      <input id="chat-input" type="text" autocomplete="off" placeholder="Escribe algo…" aria-label="Escribe tu mensaje" />
       <button type="submit">Enviar</button>
     </form>
   </aside>
 
+  <!-- Diario de misiones -->
+  <aside id="diario" aria-label="Diario de misiones">
+    <div class="diario-cab">
+      <strong>📖 Diario</strong>
+      <button id="diario-cerrar" aria-label="Cerrar diario">✕</button>
+    </div>
+    <div id="diario-lista"></div>
+  </aside>
+
   <!-- Controles táctiles (solo móvil) -->
-  <div id="joy-base" class="joy"><div id="joy-knob"></div></div>
-  <button id="hablar" class="hablar"></button>
+  <div id="joy-base" class="joy" aria-hidden="true"><div id="joy-knob"></div></div>
+  <button id="hablar" class="hablar" aria-label="Hablar con el vecino cercano"></button>
 
   <script type="module" src="./js/main.js"></script>
 </body>

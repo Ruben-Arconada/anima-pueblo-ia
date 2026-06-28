@@ -1,4 +1,4 @@
-// Interfaz de chat (panel lateral). Renderiza la conversación y el streaming.
+// Interfaz: chat inferior translúcido + diario de quests + toasts diegéticos.
 
 export class ChatUI {
   constructor() {
@@ -10,6 +10,8 @@ export class ChatUI {
     this.form = document.getElementById("chat-form");
     this.input = document.getElementById("chat-input");
     this.cerrar = document.getElementById("chat-cerrar");
+    this.diario = document.getElementById("diario");
+    this.diarioLista = document.getElementById("diario-lista");
     this.onSend = () => {};
     this.onClose = () => {};
 
@@ -21,8 +23,15 @@ export class ChatUI {
       this.onSend(txt);
     });
     this.cerrar.addEventListener("click", () => this.close());
+    document.getElementById("diario-cerrar")?.addEventListener("click", () => this.toggleDiario(false));
     addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.isOpen()) this.close();
+      if (e.key === "Escape") {
+        if (this.diario?.classList.contains("abierto")) this.toggleDiario(false);
+        else if (this.isOpen()) this.close();
+      }
+      if (e.key.toLowerCase() === "j" && !this.isOpen() && document.activeElement !== this.input) {
+        this.toggleDiario();
+      }
     });
   }
 
@@ -36,11 +45,9 @@ export class ChatUI {
     this.rol.textContent = npc.rol;
     this.log.innerHTML = "";
     if (memoria && memoria.veces > 0) {
-      this.mem.textContent = `💭 ${npc.nombre} te recuerda · habéis hablado ${memoria.veces} ${memoria.veces === 1 ? "vez" : "veces"}`;
-      this.mem.style.display = "block";
+      this.mem.textContent = `💭 ${npc.nombre} te recuerda · habéis hablado ${memoria.veces} ${memoria.veces === 1 ? "vez" : "veces"}${memoria.confianza > 0 ? " · hay confianza" : ""}`;
     } else {
       this.mem.textContent = "✨ Primera vez que os veis";
-      this.mem.style.display = "block";
     }
     this.panel.classList.add("abierto");
     document.body.classList.add("chat-open");
@@ -61,7 +68,7 @@ export class ChatUI {
     this._scroll();
   }
 
-  // Devuelve un controlador para ir añadiendo tokens al vuelo.
+  // Streaming con buffer por requestAnimationFrame (no compite con la inferencia).
   addNPCStream(color) {
     const el = document.createElement("div");
     el.className = "msg npc";
@@ -69,16 +76,29 @@ export class ChatUI {
     const cuerpo = document.createElement("span");
     const meta = document.createElement("div");
     meta.className = "meta";
-    el.appendChild(cuerpo);
-    el.appendChild(meta);
+    el.append(cuerpo, meta);
     this.log.appendChild(el);
     this._scroll();
+    let full = "",
+      raf = null;
+    const flush = () => {
+      raf = null;
+      cuerpo.textContent = full;
+      this._scroll();
+    };
     return {
       token: (t) => {
-        cuerpo.textContent += t;
+        full += t;
+        if (!raf) raf = requestAnimationFrame(flush);
+      },
+      replace: (txt) => {
+        full = txt;
+        cuerpo.textContent = txt;
         this._scroll();
       },
       done: (metaTxt) => {
+        if (raf) cancelAnimationFrame(raf);
+        cuerpo.textContent = full;
         meta.textContent = metaTxt || "";
         this._scroll();
       },
@@ -91,6 +111,48 @@ export class ChatUI {
     el.textContent = text;
     this.log.appendChild(el);
     this._scroll();
+  }
+
+  // Toast diegético efímero (oferta/cierre de quest), con el color del NPC.
+  questToast(text, color) {
+    const t = document.createElement("div");
+    t.className = "quest-toast";
+    t.textContent = text;
+    if (color) t.style.borderColor = color;
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add("show"));
+    setTimeout(() => {
+      t.classList.remove("show");
+      setTimeout(() => t.remove(), 400);
+    }, 3800);
+  }
+
+  toggleDiario(force) {
+    if (!this.diario) return;
+    const abrir = force === undefined ? !this.diario.classList.contains("abierto") : force;
+    this.diario.classList.toggle("abierto", abrir);
+  }
+
+  renderDiario(activas, hechas) {
+    if (!this.diarioLista) return;
+    this.diarioLista.innerHTML = "";
+    if (!activas.length && !hechas.length) {
+      this.diarioLista.innerHTML = '<p class="q-vacio">Aún no tienes recados. Acércate a los vecinos: alguno necesitará tu ayuda.</p>';
+      return;
+    }
+    for (const q of activas) {
+      const d = document.createElement("div");
+      d.className = "q-item";
+      d.style.borderColor = q.color || "#888";
+      d.textContent = "• " + q.diario;
+      this.diarioLista.appendChild(d);
+    }
+    for (const q of hechas) {
+      const d = document.createElement("div");
+      d.className = "q-item hecha";
+      d.textContent = "✓ " + q.diario;
+      this.diarioLista.appendChild(d);
+    }
   }
 
   _scroll() {

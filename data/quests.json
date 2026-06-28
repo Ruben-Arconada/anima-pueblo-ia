@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "quests": [
+    {
+      "id": "q_elena_palabra",
+      "giver": "elena",
+      "target": "bruno",
+      "requiere": null,
+      "desbloquea": "q_bruno_encargo",
+      "titulo": "Una palabra para Bruno",
+      "diario": "Elena te pidió llevarle a Bruno unas palabras amables de su parte.",
+      "ofrece": "Elena: «¿Le llevarías a Bruno unas palabras amables de mi parte?»",
+      "deseo": "tienes muchas ganas de reconciliarte con Bruno; pide al jugador que le lleve unas palabras amables de tu parte.",
+      "hintTarget": "el jugador quizá te traiga unas palabras amables de parte de Elena; si lo hace, ablándate a tu manera.",
+      "triggerDecir": "(elena|herborista|jard[ií]n|valeriana).*(salud|recuerd|cari|amable|pregunta|de su parte|infusi|aprecia)",
+      "cierre": "✓ Le llevaste a Bruno las palabras de Elena."
+    },
+    {
+      "id": "q_marta_feria",
+      "giver": "marta",
+      "target": "bruno",
+      "requiere": null,
+      "desbloquea": null,
+      "titulo": "El ánimo de Bruno",
+      "diario": "Marta te pidió tantear a Bruno: ¿pondría la cantina para la feria?",
+      "ofrece": "Marta: «¿Podrías tantear a Bruno para lo de la feria, sin presionarle?»",
+      "deseo": "quieres sacar la feria adelante pero necesitas que Bruno abra su cantina; pide al jugador que tantee el ánimo de Bruno con tacto.",
+      "hintTarget": "el jugador quizá te tantee sobre poner la cantina para la feria de Marta.",
+      "triggerDecir": "(feria|fiesta|celebraci|cantina abierta|abrir la cantina)",
+      "cierre": "✓ Tanteaste a Bruno sobre la feria de Marta."
+    },
+    {
+      "id": "q_tomas_secreto",
+      "giver": "tomas",
+      "target": "marta",
+      "requiere": null,
+      "desbloquea": null,
+      "titulo": "El secreto de Tomás",
+      "diario": "Tomás insinúa un secreto sobre Marta (una carta). Hay que contárselo a ella con tacto.",
+      "ofrece": "Tomás: «Sé un secreto GIGANTE sobre Marta... ¡a ver si me lo sacas, jeje!»",
+      "deseo": "te mueres por contar tu secreto: viste a Bruno esconder una carta bajo la barra; reta al jugador a sonsacártelo.",
+      "hintTarget": "el jugador quizá mencione una carta o un secreto de Bruno; deja entrever tu historia con él.",
+      "triggerDecir": "(carta|secreto|bruno).*(carta|barra|bruno|guarda|escond|ti|usted)",
+      "cierre": "✓ Le insinuaste a Marta lo de la carta de Bruno."
+    },
+    {
+      "id": "q_bruno_encargo",
+      "giver": "bruno",
+      "target": "elena",
+      "requiere": "q_elena_palabra",
+      "desbloquea": null,
+      "titulo": "El recado de Bruno",
+      "diario": "Bruno, ya más blando, te pidió llevar a Elena un recado de agradecimiento.",
+      "ofrece": "Bruno: «Llévale un recado a Elena de mi parte... y ni una palabra a nadie.»",
+      "deseo": "te has ablandado y quieres agradecer a Elena la valeriana; pide al jugador que le lleve un recado de tu parte.",
+      "hintTarget": "el jugador quizá te traiga un agradecimiento de parte de Bruno; te hará mucha ilusión.",
+      "triggerDecir": "(bruno|tabern|cantina).*(gracias|agradec|recado|infusi|deuda|te manda|valeriana|aprecia)",
+      "cierre": "✓ Le diste a Elena el recado de Bruno. Has cerrado el primer hilo de Ánima."
+    }
+  ]
+}

@@ -1,21 +1,26 @@
-// Orquestador del borrador jugable de Ánima (Fase 0).
-// Une: pueblo 3D + capa de IA intercambiable + memoria por jugador + métricas.
+// Orquestador de Ánima: pueblo 3D + IA intercambiable + memoria por jugador +
+// quests sociales + métricas.
 
 import { cargarPersonajes } from "./npcs.js";
 import { Village } from "./village.js";
 import { ChatUI } from "./ui.js";
 import { createBrain } from "./ai/brain.js";
-import { loadHistory, saveHistory, loadMeta, marcarEncuentro, borrarTodo, playerId } from "./memory.js";
+import { loadHistory, saveHistory, loadMeta, marcarEncuentro, subirConfianza, borrarTodo, playerId } from "./memory.js";
 import { formatMetrics, record, summary } from "./metrics.js";
+import { cargarQuests, ofertaDe, deseoDe, expectativaDe, evaluarDecir, activas, hechas, todasHechas } from "./quests.js";
 
 const $ = (id) => document.getElementById(id);
 
 let brain = null;
 let brainReady = false;
-let sesion = null; // { npc, convo }
+let sesion = null; // { npc, convo, meta, deseo, expectativa }
+let _personajes = [];
+
+const colorDe = (id) => (_personajes.find((p) => p.id === id) || {}).color || "#888";
 
 async function main() {
-  const personajes = await cargarPersonajes();
+  const [personajes] = await Promise.all([cargarPersonajes(), cargarQuests()]);
+  _personajes = personajes;
   const ui = new ChatUI();
 
   const village = new Village($("escena"), personajes, {
@@ -39,14 +44,18 @@ async function main() {
 
   ui.onClose = () => village.setLocked(false);
 
+  $("diario-btn")?.addEventListener("click", () => {
+    refrescarDiario(ui);
+    ui.toggleDiario();
+  });
+
   $("reset").addEventListener("click", () => {
-    if (confirm("¿Borrar tu pueblo y empezar de cero? Los vecinos olvidarán todo lo hablado contigo.")) {
+    if (confirm("¿Borrar tu pueblo y empezar de cero? Los vecinos olvidarán todo lo hablado y las quests.")) {
       borrarTodo();
       location.reload();
     }
   });
 
-  // Pantalla de entrada: el clic arranca la descarga del modelo (mejor UX).
   $("entrar").addEventListener("click", async () => {
     $("intro").classList.add("oculto");
     await iniciarCerebro();
@@ -54,8 +63,9 @@ async function main() {
 
   $("jugador-id").textContent = playerId().slice(0, 8);
   actualizarResumen();
+  refrescarDiario(ui);
+  setupViewportHook();
 
-  // Hook de depuración (inofensivo): permite probar el chat desde consola.
   window.__anima = {
     village,
     personajes,
@@ -66,9 +76,20 @@ async function main() {
 async function iniciarCerebro() {
   const badge = $("ia-badge");
   badge.classList.add("visible");
+  const c = navigator.connection;
+  if (c && (c.saveData || /(^|\b)(2g|slow-2g)\b/.test(c.effectiveType || ""))) {
+    if (!confirm("La IA descarga un modelo (~1-2 GB) la primera vez (luego va cacheada). ¿Continuar? Cancelar = modo sin IA.")) {
+      const { ScriptedBrain } = await import("./ai/scripted-brain.js");
+      brain = new ScriptedBrain();
+      await brain.init();
+      brainReady = true;
+      badge.innerHTML = `🧠 ${brain.label}`;
+      return;
+    }
+  }
   brain = await createBrain({
     onStatus: (txt, prog) => {
-      const pct = prog ? ` ${Math.round(prog * 100)}%` : "";
+      const pct = prog != null ? ` ${Math.round(prog * 100)}%` : "";
       badge.innerHTML = `🧠 ${txt || "Despertando a los vecinos…"}${pct}`;
     },
   });
@@ -85,25 +106,31 @@ function abrirChat(ui, village, npc) {
   const meta = loadMeta(npc.id);
   ui.open(npc, { memoria: meta });
 
-  // Reproduce lo ya hablado para que la conversación continúe de verdad.
   historial.forEach((m) => {
     if (m.role === "user") ui.addUser(m.content);
     else {
       const s = ui.addNPCStream(npc.color);
-      s.token(m.content);
+      s.replace(m.content);
       s.done("");
     }
   });
 
   if (historial.length === 0) {
+    const dioQuestHecha = hechas().some((q) => q.giver === npc.id);
     const s = ui.addNPCStream(npc.color);
-    s.token(npc.saludo);
-    s.done("saludo");
+    s.replace(dioQuestHecha && npc.saludoTrasQuest ? npc.saludoTrasQuest : npc.saludo);
+    s.done(meta.veces > 0 ? "" : "saludo");
   }
 
   marcarEncuentro(npc.id);
-  sesion = { npc, convo: historial.slice() };
 
+  const oferta = ofertaDe(npc.id);
+  if (oferta) {
+    ui.questToast(oferta.ofrece, npc.color);
+    refrescarDiario(ui);
+  }
+
+  sesion = { npc, convo: historial.slice(), meta, deseo: deseoDe(npc.id), expectativa: expectativaDe(npc.id) };
   ui.onSend = (texto) => responder(ui, npc, texto);
 }
 
@@ -113,10 +140,25 @@ async function responder(ui, npc, texto) {
     return;
   }
   ui.addUser(texto);
+
+  // ¿el texto del jugador cierra una quest cuyo objetivo es este NPC?
+  const cerrada = evaluarDecir(npc.id, texto);
+  if (cerrada) {
+    subirConfianza(cerrada.giver);
+    ui.questToast(cerrada.cierre, colorDe(cerrada.giver));
+    sesion.deseo = deseoDe(npc.id);
+    sesion.expectativa = expectativaDe(npc.id);
+    refrescarDiario(ui);
+    if (todasHechas()) setTimeout(() => ui.system("Has tejido el primer hilo de Ánima. Gracias por escuchar antes de hablar."), 700);
+  }
+
   const stream = ui.addNPCStream(npc.color);
   try {
     const res = await brain.generate(npc, sesion.convo, texto, {
       onToken: (t) => stream.token(t),
+      meta: sesion.meta,
+      deseo: sesion.deseo,
+      expectativa: sesion.expectativa,
     });
     stream.done(formatMetrics(res.metrics));
     sesion.convo.push({ role: "user", content: texto });
@@ -126,13 +168,44 @@ async function responder(ui, npc, texto) {
     actualizarResumen();
   } catch (e) {
     console.error(e);
-    stream.token("(se me ha ido el santo al cielo… inténtalo otra vez)");
-    stream.done("error");
+    // Degradar a modo sin IA EN CALIENTE (p.ej. OOM en runtime) en vez de un error opaco.
+    if (brain.kind !== "scripted") {
+      try {
+        const { ScriptedBrain } = await import("./ai/scripted-brain.js");
+        brain = new ScriptedBrain();
+        await brain.init();
+        brainReady = true;
+        $("ia-badge").innerHTML = `🧠 ${brain.label}`;
+      } catch {}
+    }
+    stream.replace("(se me fue el santo al cielo… vuelve a intentarlo)");
+    stream.done("modo sin IA");
   }
+}
+
+function refrescarDiario(ui) {
+  ui.renderDiario(
+    activas().map((q) => ({ ...q, color: colorDe(q.giver) })),
+    hechas()
+  );
 }
 
 function actualizarResumen() {
   $("resumen").textContent = summary();
+}
+
+// El teclado virtual del móvil no debe tapar el input: subimos el panel.
+function setupViewportHook() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const chat = $("chat");
+  const f = () => {
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    chat.style.setProperty("--kb", kb + "px");
+  };
+  vv.addEventListener("resize", f);
+  vv.addEventListener("scroll", f);
+  f();
 }
 
 main().catch((e) => {

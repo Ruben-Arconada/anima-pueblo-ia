@@ -31,12 +31,13 @@ export function saveHistory(npcId, history) {
   localStorage.setItem(histKey(npcId), JSON.stringify(history.slice(-MAX_TURNOS)));
 }
 
-// Metadatos: cuántas veces te ha visto, cuándo fue la última.
+// Metadatos: cuántas veces te ha visto, cuándo fue la última, cuánta confianza.
 export function loadMeta(npcId) {
   try {
-    return JSON.parse(localStorage.getItem(metaKey(npcId))) || { veces: 0, ultima: null };
+    const m = JSON.parse(localStorage.getItem(metaKey(npcId)));
+    return m && typeof m === "object" ? { veces: 0, ultima: null, confianza: 0, ...m } : { veces: 0, ultima: null, confianza: 0 };
   } catch {
-    return { veces: 0, ultima: null };
+    return { veces: 0, ultima: null, confianza: 0 };
   }
 }
 
@@ -46,6 +47,28 @@ export function marcarEncuentro(npcId) {
   m.ultima = Date.now();
   localStorage.setItem(metaKey(npcId), JSON.stringify(m));
   return m;
+}
+
+export function subirConfianza(npcId, n = 1) {
+  const m = loadMeta(npcId);
+  m.confianza = (m.confianza || 0) + n;
+  localStorage.setItem(metaKey(npcId), JSON.stringify(m));
+  return m;
+}
+
+// --- Estado de QUESTS por jugador (un solo blob: { id: 'activa'|'hecha' }) ---
+const questKey = () => `anima:quest:${playerId()}`;
+
+export function loadQuests() {
+  try {
+    return JSON.parse(localStorage.getItem(questKey())) || {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveQuests(state) {
+  localStorage.setItem(questKey(), JSON.stringify(state || {}));
 }
 
 // Borra TODO el mundo de este jugador (botón de "empezar de cero" + RGPD-friendly).
