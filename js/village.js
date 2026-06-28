@@ -561,9 +561,17 @@ export class Village {
       obj.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(obj);
       const alto = box.max.y - box.min.y || 1.8;
-      const s = 0.72 / alto; // 1/3 + 20%
+      // igualar la altura a la de los NPCs (cuerpo+cabeza, no la etiqueta flotante)
+      let alturaNPC = 1.95;
+      if (this.npcs[0]) {
+        this.npcs[0].updateMatrixWorld(true);
+        const ref = new THREE.Box3();
+        this.npcs[0].userData.meshes.forEach((m) => ref.expandByObject(m));
+        if (ref.max.y > ref.min.y) alturaNPC = ref.max.y - ref.min.y;
+      }
+      const s = alturaNPC / alto;
       obj.scale.setScalar(s);
-      obj.position.y = -box.min.y * s; // pies a y=0 con el modelo ya escalado (sin levitar)
+      obj.position.y = -box.min.y * s; // pies a y=0 (sin levitar)
       obj.traverse((o) => { if (o.isMesh) o.castShadow = this.sombrasOn; });
       if (this.playerCapsule) this.playerCapsule.visible = false;
       this.player.add(obj);
