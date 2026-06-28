@@ -152,8 +152,10 @@ export class Village {
     cuerpo.position.y = 0.95;
     cuerpo.castShadow = this.sombrasOn;
     this.player.add(cuerpo);
+    this.playerCapsule = cuerpo; // se oculta si llega un modelo .glb
     this.player.position.set(0, 0, -2);
     this.scene.add(this.player);
+    this._cargarModeloJugador(); // carga models/jugador.glb si existe (defensivo)
     this.playerShadow = new THREE.Mesh(this.G.disco, this.M.sombra);
     this.playerShadow.rotation.x = -Math.PI / 2;
     this.playerShadow.position.y = 0.016;
@@ -488,7 +490,11 @@ export class Village {
     this.grillos = new THREE.Audio(this.listener);
     this.grillos.setLoop(true);
     this.grillos.setVolume(0);
-    loader.load("./audio/grillos.mp3", (b) => { this.grillos.setBuffer(b); this.grillos.play(); }, undefined, () => {});
+    // si no hay fichero, usa un placeholder sintetizado (sin descargas ni licencias)
+    loader.load("./audio/grillos.mp3",
+      (b) => { this.grillos.setBuffer(b); this.grillos.play(); },
+      undefined,
+      () => { this.grillos.setBuffer(this._bufGrillos()); this.grillos.play(); });
     this.cantina = new THREE.PositionalAudio(this.listener);
     this.cantina.setRefDistance(3.5);
     this.cantina.setMaxDistance(14);
@@ -499,13 +505,81 @@ export class Village {
     ancla.position.set(-9, 1.4, -5); // puerta de la taberna de Bruno
     ancla.add(this.cantina);
     this.scene.add(ancla);
-    loader.load("./audio/cantina.mp3", (b) => { this.cantina.setBuffer(b); this.cantina.play(); }, undefined, () => {});
+    loader.load("./audio/cantina.mp3",
+      (b) => { this.cantina.setBuffer(b); this.cantina.play(); },
+      undefined,
+      () => { this.cantina.setBuffer(this._bufMelodia()); this.cantina.play(); });
+  }
+
+  // Placeholder de grillos: chirridos suaves y periódicos (se sustituye con audio/grillos.mp3).
+  _bufGrillos() {
+    const ctx = this.listener.context, sr = ctx.sampleRate, dur = 4, n = sr * dur;
+    const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+    for (let t = 0; t < dur - 0.2; t += 0.32 + Math.random() * 0.05) {
+      const start = Math.floor(t * sr), len = Math.floor(0.11 * sr);
+      for (let i = 0; i < len; i++) {
+        const tt = i / sr;
+        const env = Math.exp(-tt * 16) * (0.55 + 0.45 * Math.sin(tt * 2 * Math.PI * 42));
+        if (start + i < n) d[start + i] += Math.sin(2 * Math.PI * 4550 * tt) * env * 0.1;
+      }
+    }
+    return buf;
+  }
+
+  // Placeholder de melodía de taberna: tonada suave en bucle (se sustituye con audio/cantina.mp3).
+  _bufMelodia() {
+    const ctx = this.listener.context, sr = ctx.sampleRate, dur = 8, n = sr * dur;
+    const buf = ctx.createBuffer(1, n, sr), d = buf.getChannelData(0);
+    const notas = [294, 370, 440, 370, 330, 247, 294, 330];
+    const paso = dur / notas.length;
+    notas.forEach((f, idx) => {
+      const start = Math.floor(idx * paso * sr), len = Math.floor(paso * sr);
+      for (let i = 0; i < len; i++) {
+        const tt = i / sr;
+        const env = Math.min(1, tt * 18) * Math.exp(-tt * 1.6);
+        if (start + i < n) d[start + i] += (Math.sin(2 * Math.PI * f * tt) * 0.6 + Math.sin(2 * Math.PI * f * 2 * tt) * 0.18) * env * 0.09;
+      }
+    });
+    return buf;
   }
 
   toggleMute() {
     this._muted = !this._muted;
     this.listener.setMasterVolume(this._muted ? 0 : 1);
     return this._muted;
+  }
+
+  // Carga el modelo del jugador (models/jugador.glb) si existe. Defensivo: si no hay
+  // fichero o falla, se queda la cápsula azul. Auto-escala a ~1,8 m y usa idle/walk.
+  async _cargarModeloJugador() {
+    try {
+      const ping = await fetch("./models/jugador.glb", { method: "HEAD" });
+      if (!ping.ok) return; // no hay modelo: se queda la cápsula
+      const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
+      const gltf = await new GLTFLoader().loadAsync("./models/jugador.glb");
+      const obj = gltf.scene;
+      let box = new THREE.Box3().setFromObject(obj);
+      const alto = box.max.y - box.min.y || 1.8;
+      obj.scale.setScalar(1.8 / alto);
+      box = new THREE.Box3().setFromObject(obj);
+      obj.position.y = -box.min.y; // pies a y=0
+      obj.traverse((o) => { if (o.isMesh) o.castShadow = this.sombrasOn; });
+      if (this.playerCapsule) this.playerCapsule.visible = false;
+      this.player.add(obj);
+      this.modelo = obj;
+      if (gltf.animations && gltf.animations.length) {
+        this.mixer = new THREE.AnimationMixer(obj);
+        const find = (re) => gltf.animations.find((a) => re.test(a.name));
+        const idle = find(/idle|stand|quiet/i) || gltf.animations[0];
+        const walk = find(/walk|camin|run/i) || gltf.animations[1] || idle;
+        this.animIdle = this.mixer.clipAction(idle);
+        this.animWalk = this.mixer.clipAction(walk);
+        this.animIdle.play();
+        this._animActual = "idle";
+      }
+    } catch (e) {
+      /* sin modelo: se queda la cápsula */
+    }
   }
 
   _loop() {
@@ -547,7 +621,9 @@ export class Village {
         }
       }
       const mag = Math.hypot(mx, mz);
+      this._moving = mag > 0.01;
       if (mag > 1) { mx /= mag; mz /= mag; }
+      if (this._moving && this.modelo) this.player.rotation.y = Math.atan2(mx, mz); // mira hacia donde anda
       this.player.position.x = Math.max(-LIMITE, Math.min(LIMITE, this.player.position.x + mx * v));
       this.player.position.z = Math.max(-LIMITE, Math.min(LIMITE, this.player.position.z + mz * v));
     }
@@ -571,6 +647,21 @@ export class Village {
       n.position.y = Math.sin(t * 1.5 + i) * 0.04;
     });
     this.playerShadow.position.set(p.x, 0.016, p.z);
+
+    // animación del modelo del jugador (idle <-> walk)
+    if (this.mixer) {
+      this.mixer.update(dt);
+      if (this.animWalk && this.animIdle) {
+        const quiero = this._moving ? "walk" : "idle";
+        if (quiero !== this._animActual) {
+          const to = quiero === "walk" ? this.animWalk : this.animIdle;
+          const from = quiero === "walk" ? this.animIdle : this.animWalk;
+          to.reset().fadeIn(0.2).play();
+          from.fadeOut(0.2);
+          this._animActual = quiero;
+        }
+      }
+    }
     this._tickDia(dt);
     if (this.clickMarker.visible) {
       this._mk = (this._mk || 0) + dt;
