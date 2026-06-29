@@ -1,66 +1,54 @@
-# Ánima — el pueblo de IA · borrador jugable (Fase 0)
+# Ánima — el pueblo de IA · borrador jugable
 
-Un pequeño pueblo en 3D cuyos vecinos están movidos por **IA**: **improvisan** sus
-respuestas (no tienen guion), **te recuerdan** entre visitas y reaccionan a lo que dices.
+Un pueblo en 3D cuyos vecinos están movidos por **IA**: **improvisan** (no tienen guion),
+**te recuerdan** entre visitas, reaccionan a lo que dices y te **proponen pequeñas quests**.
 
-Es el **primer borrador** del proyecto. Corre **100 % en el navegador**, sin servidor:
-ideal para una URL pública jugable y de coste cero.
+👉 **Jugar:** https://ruben-arconada.github.io/anima-pueblo-ia/
 
-## 🎮 Jugar
+## 🎮 Cómo se juega
+- Muévete con **WASD/flechas**, **joystick** (móvil) o **clic en el suelo** (point-and-click).
+- Acércate a un vecino y pulsa **E**, haz **clic en él** o el botón **Hablar**.
+- **J** o 📖 abre el **diario** de misiones. **🔊** silencia. **↺** reinicia tu pueblo.
+- La IA: por defecto corre **en tu navegador** (WebGPU/WebLLM); mejor en Chrome/Edge. Sin
+  WebGPU, "modo sin IA" con personalidad. Con servidor configurado, usa tu Ollama (ver abajo).
 
-👉 **URL en vivo:** se rellena al publicar en GitHub Pages.
+## ✨ Qué hay ahora
+- **4 vecinos** (Bruno, Elena, Tomás, Marta) con persona, **memoria por jugador** y **afecto** (♥).
+- **7 quests sociales** encadenadas (amistad y romance del pueblo) + objetivo *"Ánima: N/7 hilos"* + epílogo.
+- **Pueblo 3D**: casas, árboles, farolas, **ciclo día/noche** (cielo, sol, niebla, estrellas, ventanas/farolas que se encienden), **sombras suaves**, y **transparencia por oclusión** (lo que tapa al jugador se ve translúcido, estilo BG3).
+- **Jugador**: maniquí placeholder rigueado (idle + walk), a la altura de los vecinos. Se sustituye dejando un `.glb` (ver abajo).
+- **Sonido**: grillos de noche + melodía posicional en la cantina (placeholder sintetizado; sustituible).
 
-- Muévete con **WASD** / flechas.
-- Acércate a un vecino y pulsa **E** (o haz clic) para hablar.
-- La primera vez se **descarga el modelo de IA** al navegador (cacheado después).
-- Mejor en **Chrome / Edge** (WebGPU). Sin WebGPU, se juega en “modo sin IA”.
+## 🧩 Arquitectura
+| Pieza | Dónde |
+|---|---|
+| Capa de IA intercambiable (servidor → navegador → sin IA) | `js/ai/brain.js`, `webllm-brain.js`, `server-brain.js`, `scripted-brain.js` |
+| Personajes y quests como **datos** | `data/personajes.json`, `data/quests.json` |
+| Memoria por (jugador, npc) en `localStorage` | `js/memory.js` |
+| Pueblo 3D, día/noche, oclusión, controles, modelo | `js/village.js` |
+| Quests (motor), interfaz, métricas | `js/quests.js`, `js/ui.js`, `js/metrics.js` |
+| Backend IA (FastAPI → Ollama) | `server/` |
 
-### En local
+## 🧍 Cambiar el modelo del jugador
+Deja un `.glb` (rig humanoide + clips `idle`/`walk`) en **`app/models/jugador.glb`**. El juego
+lo carga solo, lo **auto-escala a la altura de los vecinos** y reproduce idle/walk. Specs en
+[`models/LEEME.md`](models/LEEME.md). Si llega en **T-pose sin rig**, se rigea en Blender
+(ver `CLAUDE.md` en la raíz del proyecto, fuera del repo).
+
+## 🔊 Sonido propio
+Deja `audio/grillos.mp3` y `audio/cantina.mp3` (specs en [`audio/LEEME.md`](audio/LEEME.md)) y
+sustituyen al placeholder.
+
+## 🖥️ Backend de IA (opcional, tu Ollama 7B)
 ```bash
-cd app
-python3 -m http.server 8000   # o cualquier servidor estático
-# abre http://localhost:8000
+cd server && ./run.sh                       # backend local (imprime token)
+cloudflared tunnel --url http://localhost:8011   # URL pública
+# Persistente (servicio que sobrevive a reinicios): ./instalar-servicio.sh
 ```
+Activa el servidor en el juego abriendo `...github.io/anima-pueblo-ia/?ia=<URL_túnel>&k=<TOKEN>`
+(se guarda y se limpia de la barra). `?ia=off` vuelve al navegador.
 
-## 🧩 Cómo está hecho (y por qué así)
-
-| Pieza | Decisión | Dónde |
-|---|---|---|
-| **Cerebro de los NPC** | IA real **en el navegador** (WebGPU + WebLLM). Coste de servidor 0 €. | `js/ai/webllm-brain.js` |
-| **Capa de IA intercambiable** | Una interfaz; hoy WebLLM, mañana Ollama/Claude con cambiar una línea. | `js/ai/brain.js`, `js/ai/server-brain.js` |
-| **Personajes como datos** | Añadir un vecino = añadir un objeto al JSON. Cero código. | `data/personajes.json` |
-| **Memoria por jugador** | `(jugador, npc)` en `localStorage`. **Instancia por jugador**: tu pueblo es tuyo. | `js/memory.js` |
-| **Métricas** | Latencia y tokens/s por interacción, desde el día 1. | `js/metrics.js` |
-| **Pueblo 3D** | Three.js minimalista a propósito (la magia son los personajes). | `js/village.js` |
-
-## 🌱 Preparado para crecer
-
-Decidido: **instancia por jugador** ahora, arquitectura lista para escalar.
-La capa de IA está desacoplada del juego, así que la ruta de crecimiento es **mover piezas, no reescribir**:
-
-1. **Hoy (F0):** cerebro en el navegador (WebLLM), memoria local. Mundo de un jugador.
-2. **Servidor:** swap a `ServerBrain` → el Mac con Ollama o Claude API. El juego no se entera.
-3. **Directo (streaming):** la audiencia influye en los vecinos vía chat de Twitch.
-4. **Salas pequeñas / mundo compartido:** varios jugadores en el mismo pueblo (cuando el loop esté validado).
-
-## 📂 Estructura
+## 💻 En local
+```bash
+cd app && python3 -m http.server 8000   # http://localhost:8000
 ```
-index.html          entrada
-styles.css
-js/
-  main.js           orquestador
-  village.js        pueblo 3D (Three.js)
-  ui.js             panel de chat
-  npcs.js           carga de personajes
-  memory.js         memoria por (jugador, npc)
-  metrics.js        latencia / tokens
-  ai/
-    brain.js        capa de IA intercambiable (fábrica)
-    webllm-brain.js IA en el navegador (en uso)
-    scripted-brain.js  fallback con personalidad
-    server-brain.js stub para Ollama/Claude (futuro)
-data/personajes.json  los vecinos, como datos
-```
-
----
-Hecho como Fase 0 del proyecto Ánima. Local-first, coste controlado, premium para directos.
